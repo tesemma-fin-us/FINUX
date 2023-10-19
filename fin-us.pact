@@ -70,12 +70,15 @@
     ;;  constants
     (defconst root-co-bank:string "root-co-bank"
         @doc "root treasury account established to initially hold all the tokens allocated to the co - 25%; note that the company is allocated class a tokens, which can only, strictly be used for computation, i.e., class a tokens cannot be exchanged publicly in either exchanges or DEXs. for more information, visit: fin-us.com"
+        ;; note: updated to 45% of supply; further, fin-us.com is not yet available to the public. It should be available by January 2024. 
     )
     (defconst root-users-bank:string "root-users-bank"
         @doc "root treasury account established to initially hold all the tokens allocated to the users of the fin-us platforms - 37.5%; note that the users are allocated class b tokens, which can be used for any purpose, i.e., class b tokens can be used for both computational purposes or for general public trading purposes (in either exchanges or DEXs). for more information, visit: fin-us.com"
+        ;; note: updated to 55% of supply; further, fin-us.com is not yet available to the public. It should be available by January 2024.
     )
     (defconst root-miners-bank:string "root-miners-bank"
         @doc "root treasury account established to initially hold all the tokens allocated to the miners across the fin-us platforms - 37.5%; note that similar to users, miners are also allocated class b tokens."
+        ;; note: updated to 0% of supply; this might change in the future. However, the balance for the root-miners-bank will only come from the root-co-bank. Further, fin-us.com is not yet available to the public. It should be available by January 2024.
     )
     (defconst root-network-bank:string "root-network-bank"
         @doc "root treasury account established as a middle layer to accept computational fees--furthermore, this account serves to modulate the network's class a and b tokens balances. this is the only account authorized to transition class a tokens to class b and vise versa. for more information, visit: fin-us.com"
