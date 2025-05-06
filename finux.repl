@@ -1,0 +1,541 @@
+;;  Tx 0
+;;      Goal: Load contracts
+;;      Contracts Loaded:
+;;          1. finux.pact:- module name: free.finux 
+;;              Desc: Finux Token Contract
+;;          2. finux-y-n-prediction_market.pact:- module name: free.finux-y-n-prediction_market 
+;;              Desc: Prediction Market for Yes or No Events (i.e., Will it rain tomorrow? (Outcomes: Yes or No))
+;;          3. finux-c-prediction_market.pact:- module name: free.finux-c-prediction_market.pact 
+;;              Desc: Prediction Market for Categorical Events (i.e., Who will win the super bowl? (Outcomes: Eagles or Cheifs))
+(begin-tx)
+
+(env-data
+    {
+        "finux-module-admin": {"keys": ["module-admin"], "pred": "keys-all"},
+        "finux-operations-admin": {"keys": ["operations-admin"], "pred": "keys-all"},
+        "finulab-bank": {"keys": ["8a6d0f7488699d061fa8f6eb87cca6de9994d867435269987aa68bef88e038c9"], "pred": "keys-all"}
+    }
+)
+(env-sigs 
+    [
+        {"key": "module-admin", "caps": []},
+        {"key": "operations-admin", "caps": []},
+        {"key": "8a6d0f7488699d061fa8f6eb87cca6de9994d867435269987aa68bef88e038c9", "caps": []}
+    ]
+)
+
+(load "fungible-v2.pact")
+(load "fungible-xchain-v1.pact")
+
+(load "finux.pact")
+(load "finux-y-n-prediction_market.pact")
+(load "finux-c-prediction_market.pact")
+
+(commit-tx)
+
+;;  Tx 1 
+;;      Goal: Initialize free.finux & Distribute balance to root account (i.e., "finulab-bank" for redistribution to users)
+;;      Module Tested: free.finux
+;;      Major Functions Tested: 
+;;          1. initialize-contract
+;;          2. details
+;;          3. get-balance
+(begin-tx)
+
+(use free.finux)
+(env-data
+    {
+        "finux-module-admin": {"keys": ["module-admin"], "pred": "keys-all"},
+        "finux-operations-admin": {"keys": ["operations-admin"], "pred": "keys-all"},
+        "finulab-bank": {"keys": ["8a6d0f7488699d061fa8f6eb87cca6de9994d867435269987aa68bef88e038c9"], "pred": "keys-all"}
+    }
+)
+(env-sigs 
+    [
+        {"key": "module-admin", "caps": []},
+        {"key": "operations-admin", "caps": []},
+        {"key": "8a6d0f7488699d061fa8f6eb87cca6de9994d867435269987aa68bef88e038c9", "caps": []}
+    ]
+)
+(env-chain-data {"chain-id":"3"})
+
+(initialize-contract) 
+(details "finulab-bank") 
+    ;; Expected Result: {"account": "finulab-bank", "balance": 150000000.0, "guard": KeySet {keys: [ 8a6d0f7488699d061fa8f6eb87cca6de9994d867435269987aa68bef88e038c9 ], pred: keys-all}}
+(format "Balance to redistribute to users is: {}" [(get-balance "finulab-bank")]) 
+    ;; Expected Result: "Balance to redistribute to users is: 150000000.0"
+
+(commit-tx)
+
+;;  Tx 2
+;;      Goal: Test all other major functionalities in the module free.finux
+;;      Module Tested: free.finux
+;;      Major Functions Tested: 
+;;          1. create-account
+;;          2. transfer
+;;          3. transfer-create
+(begin-tx)
+
+(use free.finux)
+(env-data
+    {
+        "user_1": {"keys": ["user_1"], "pred": "keys-all"}
+    }
+)
+(env-sigs 
+    [
+        {"key": "user_1", "caps": []}
+    ]
+)
+
+(create-account "user_1" (read-keyset "user_1"))
+(details "user_1") 
+    ;; Expected Result:{"account": "user_1", "balance": 0.0, "guard": KeySet {keys: [user_1], pred: keys-all}}
+
+(env-data
+    {
+        "user_1": {"keys": ["user_1"], "pred": "keys-all"},
+        "user_2": {"keys": ["user_2"], "pred": "keys-all"},
+        "user_3": {"keys": ["user_3"], "pred": "keys-all"},
+        "finux-operations-admin": {"keys": ["operations-admin"], "pred": "keys-all"},
+        "finulab-bank": {"keys": ["8a6d0f7488699d061fa8f6eb87cca6de9994d867435269987aa68bef88e038c9"], "pred": "keys-all"}
+    }
+)
+(env-sigs 
+    [
+        {"key": "user_1", "caps": [(free.finux.TRANSFER "user_1" "user_2" 1000.0)]},
+        {"key": "user_2", "caps": [(free.finux.TRANSFER "user_2" "user_3" 500.0)]},
+        {"key": "user_3", "caps": []},
+        {"key": "operations-admin", "caps": []},
+        {"key": "8a6d0f7488699d061fa8f6eb87cca6de9994d867435269987aa68bef88e038c9", "caps": [(free.finux.TRANSFER "finulab-bank" "user_1" 1500.0)]}
+    ]
+)
+
+(transfer "finulab-bank" "user_1" 1500.0)
+(details "user_1") 
+    ;; Expected Result: {"account": "user_1", "balance": 1500.0, "guard": KeySet {keys: [user_1], pred: keys-all}}
+(details "finulab-bank") 
+    ;; Expected Result: {"account": "finulab-bank", "balance": 149998500.0, "guard": KeySet {keys: [ 8a6d0f7488699d061fa8f6eb87cca6de9994d867435269987aa68bef88e038c9 ], pred: keys-all}}
+
+(transfer-create "user_1" "user_2" (read-keyset "user_2") 1000.0)
+(details "user_1") 
+    ;; Expected Result: {"account": "user_1", "balance": 500.0, "guard": KeySet {keys: [user_1], pred: keys-all}}
+(details "user_2") 
+    ;; Expected Result: {"account": "user_2", "balance": 1000.0, "guard": KeySet {keys: [user_2], pred: keys-all}}
+
+
+(transfer-create "user_2" "user_3" (read-keyset "user_3") 500.0)
+(details "user_2") 
+    ;; Expected Result: {"account": "user_2", "balance": 500.0, "guard": KeySet {keys: [user_2], pred: keys-all}}
+(details "user_3") 
+    ;; Expected Result: {"account": "user_3", "balance": 500.0, "guard": KeySet {keys: [user_3], pred: keys-all}}
+
+(commit-tx)
+
+;;  Tx 3
+;;      Goal: Test 5 of the major functionalities in the module free.finux-y-n-prediction_market
+;;      Module Tested: free.finux && free.finux-y-n-prediction_market
+;;      Major Functions Tested: 
+;;          1. y-n-create-market
+;;          2. y-n-portfolio-credit
+;;          3. y-n-portfolio-debit
+;;          4. y-n-read-market
+;;          5. y-n-read-portfolio
+(begin-tx)
+
+(use free.finux)
+(use free.finux-y-n-prediction_market)
+
+(env-data
+    {
+        "user_1": {"keys": ["user_1"], "pred": "keys-all"},
+        "user_2": {"keys": ["user_2"], "pred": "keys-all"},
+        "finux-module-admin": {"keys": ["module-admin"], "pred": "keys-all"},
+        "finux-operations-admin": {"keys": ["operations-admin"], "pred": "keys-all"},
+        "finulab-prediction-market-fees": {"keys": ["33693ab467270fcb86ec63e6313e04a6e403deac0244c45986491b71ae01a702"], "pred": "keys-all"},
+        "finulab-prediction-market-escrow-account": {"keys": ["714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711"], "pred": "keys-all"}
+    }
+)
+(env-sigs 
+    [
+        {"key": "user_1", "caps": [(free.finux.TRANSFER "user_1" "finulab-prediction-market-escrow-account" 22.77259)]},
+        {"key": "user_2", "caps": [(free.finux.TRANSFER "user_2" "finulab-prediction-market-escrow-account" 17.43773), (free.finux.TRANSFER "user_2" "finulab-prediction-market-fees" 0.43594), (free.finux.TRANSFER "user_2" "user_1" 0.43594)]},
+        {"key": "module-admin", "caps": [(free.finux.GOVERNANCE), (free.finux-y-n-prediction_market.GOVERNANCE)]},
+        {"key": "operations-admin", "caps": []},
+        {"key": "33693ab467270fcb86ec63e6313e04a6e403deac0244c45986491b71ae01a702", "caps": []},
+        {"key": "714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711", "caps": [(free.finux.TRANSFER "finulab-prediction-market-escrow-account" "user_2" 17.43773)]}
+    ]
+)
+(create-account "finulab-prediction-market-fees" (read-keyset "finulab-prediction-market-fees"))
+(create-account "finulab-prediction-market-escrow-account" (read-keyset "finulab-prediction-market-escrow-account"))
+
+(details "finulab-prediction-market-fees") 
+    ;; Root account to carry balance of fees paid to purchase shares in the prediction market.
+    ;; Expected Result: {"account": "finulab-prediction-market-fees", "balance": 0.0, "guard": KeySet {keys: [ 33693ab467270fcb86ec63e6313e04a6e403deac0244c45986491b71ae01a702 ], pred: keys-all}}
+(details "finulab-prediction-market-escrow-account") 
+    ;; Root account to carry balance of locked FINUX, as users must lock FINUX to purchase shares.
+    ;; Expected Result: {"account": "finulab-prediction-market-escrow-account", "balance": 0.0, "guard": KeySet {keys: [ 714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711 ], pred: keys-all}}
+
+
+;;  Description of y-n-create-market:
+;;      user_1 is creating a market with a unique marketId ("user_1_rain_tomorrow").
+;;      The event is "Will it rain tomorrow?", and it will end at the unix timestamp of 1746441962.
+;;      The initial quantity of shares created is: 20 No Shares and 20 Yes Shares. Further, 22.77259 FINUX was locked to create the market.
+;;      Note: false here just indicates that the market will not be traded forever, it will have an end-date/end-unix-timestamp of 1746441962.
+(y-n-create-market "user_1" "user_1_rain_tomorrow" "Will it rain tomorrow?" "" false 1746441962 {"quantity-no": 20.0, "quantity-yes": 20.0, "cost": 22.77259})
+
+(y-n-read-market "user_1_rain_tomorrow") 
+    ;; Expected Result: {
+    ;;      "predictiveQuestion": "Will it rain tomorrow?", "outcome": "", 
+    ;;      "quantityYes": 20.0, "quantityNo": 20.0, "continuous": false, "endDate": 1746441962, 
+    ;;      "status": "live", "resolved": false, "resolutionOutcome": ""
+    ;;  }
+(y-n-read-portfolio "user_1" "user_1_rain_tomorrow") 
+    ;; user_1's balance in the market id: "user_1_rain_tomorrow"
+    ;; Expected Result: {"yesQuantity": 20.0, "noQuantity": 20.0}
+
+(details "user_1") 
+    ;; user_1 locked FINUX, so balance decreased by 22.77259
+    ;; Expected Result: {"account": "user_1", "balance": 477.22741, "guard": KeySet {keys: [user_1], pred: keys-all}}
+(details "finulab-prediction-market-escrow-account") 
+    ;; escrow-account now contains that locked FINUX
+    ;; Expected Result: {"account": "finulab-prediction-market-escrow-account", "balance": 22.77259, "guard": KeySet {keys: [ 714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711 ], pred: keys-all}}
+
+;;  Description of y-n-portfolio-credit:
+;;      user_2 is purchasing shares in the market id of user_1_rain_tomorrow.
+;;      user_2 is purchasing 20 No shares, and the liqudity user_2 is locking is 17.43773.
+;;      As purchasing has tx-fees, user_2 is paying user_1 and finulab 0.43594. Since the creator of the market earns 50% of the fees.
+(y-n-portfolio-credit "user_2" "user_1_rain_tomorrow" "no" {"quantity": 20.0, "cost": 17.43773} {"fee": 0.43594, "creator-fee": 0.43594, "creator-address": "user_1", "predictive-question": "Will it rain tomorrow?", "outcome": "", "continuous": false, "end-date": 1746441962})
+
+(details "user_1") 
+    ;; user_1 received the fees paid of 0.43594
+    ;; Expected Result: {"account": "user_1", "balance": 477.66335, "guard": KeySet {keys: [user_1], pred: keys-all}}
+(details "user_2") 
+    ;; user_2 locked FINUX and paid fees, so balance decreases by 18.30961.
+    ;; Expected Result: {"account": "user_2", "balance": 481.69039, "guard": KeySet {keys: [user_2], pred: keys-all}}
+
+(details "finulab-prediction-market-fees") 
+    ;; finulab's root account of market-fees increases by 0.43594.
+    ;; Expected Result: {"account": "finulab-prediction-market-fees", "balance": 0.43594, "guard": KeySet {keys: [ 33693ab467270fcb86ec63e6313e04a6e403deac0244c45986491b71ae01a702 ], pred: keys-all}}
+(details "finulab-prediction-market-escrow-account") 
+    ;; escrow-account now contains that locked FINUX, so balance increases by 17.43773.
+    ;; Expected Result: {"account": "finulab-prediction-market-escrow-account", "balance": 40.21032, "guard": KeySet {keys: [ 714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711 ], pred: keys-all}}
+
+(y-n-read-market "user_1_rain_tomorrow") 
+    ;; since user_2 purchased 20 No shares, market's quantityNo increased
+    ;; Expected Result: {
+    ;;      "predictiveQuestion": "Will it rain tomorrow?", "outcome": "", 
+    ;;      "quantityYes": 20.0, "quantityNo": 40.0, "continuous": false, "endDate": 1746441962, 
+    ;;      "status": "live", "resolved": false, "resolutionOutcome": ""
+    ;;  }
+(y-n-read-portfolio "user_2" "user_1_rain_tomorrow") 
+    ;; user_2's balance in the market id: "user_1_rain_tomorrow"
+    ;; Expected Result: {"yesQuantity": 0.0, "noQuantity": 20.0}
+
+;;  Description of y-n-portfolio-debit
+;;      user_2 is now selling shares in the market id of user_1_rain_tomorrow.
+;;      user_2 is selling the 20 No shares, thus unlocking the 17.43773 FINUX for the root escrow-account.
+(y-n-portfolio-debit "user_2" "user_1_rain_tomorrow" "no" {"quantity": 20.0, "cost": 17.43773})
+
+
+(details "user_2") 
+    ;; user_2 received the unlocked FINUX, hence balance increasing by 17.43773
+    ;; Expected Result: {"account": "user_2", "balance": 499.12812, "guard": KeySet {keys: [user_2], pred: keys-all}}
+
+(details "finulab-prediction-market-escrow-account") 
+    ;; since user_2 unlocked FINUX, the escrow-account's balance decreased by 17.43773
+    ;; Expected Result: {"account": "finulab-prediction-market-escrow-account", "balance": 22.77259, "guard": KeySet {keys: [ 714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711 ], pred: keys-all}}
+
+(y-n-read-market "user_1_rain_tomorrow") 
+    ;; since user_2 sold all the No shares, market's quantityNo decreased by 20
+    ;; Expected Result: {
+    ;;      "predictiveQuestion": "Will it rain tomorrow?", "outcome": "", 
+    ;;      "quantityYes": 20.0, "quantityNo": 20.0, "continuous": false, "endDate": 1746441962, 
+    ;;      "status": "live", "resolved": false, "resolutionOutcome": ""
+    ;;  }
+(y-n-read-portfolio "user_2" "user_1_rain_tomorrow") 
+    ;; since user_2 sold all his shares, user owns nothing
+    ;; Expected Result: {"yesQuantity": 0.0,"noQuantity": 0.0}
+
+(commit-tx)
+
+;;  Tx 4
+;;      Goal: Test all the other major functionalities in the module free.finux-y-n-prediction_market
+;;      Module Tested: free.finux && free.finux-y-n-prediction_market
+;;      Major Functions Tested: 
+;;          1. y-n-close-market
+;;          2. y-n-resolve-market
+;;          3. y-n-resolve-portfolio
+(begin-tx)
+
+(use free.finux)
+(use free.finux-y-n-prediction_market)
+
+(env-data
+    {
+        "user_1": {"keys": ["user_1"], "pred": "keys-all"},
+        "finux-module-admin": {"keys": ["module-admin"], "pred": "keys-all"},
+        "finux-operations-admin": {"keys": ["operations-admin"], "pred": "keys-all"},
+        "finulab-prediction-market-fees": {"keys": ["33693ab467270fcb86ec63e6313e04a6e403deac0244c45986491b71ae01a702"], "pred": "keys-all"},
+        "finulab-prediction-market-escrow-account": {"keys": ["714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711"], "pred": "keys-all"}
+    }
+)
+(env-sigs 
+    [
+        {"key": "user_1", "caps": []},
+        {"key": "module-admin", "caps": []},
+        {"key": "operations-admin", "caps": []},
+        {"key": "33693ab467270fcb86ec63e6313e04a6e403deac0244c45986491b71ae01a702", "caps": []},
+        {"key": "714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711", "caps": [(free.finux.TRANSFER "finulab-prediction-market-escrow-account" "user_1" 20.0)]}
+    ]
+)
+
+;;  Description of y-n-resolve-market
+;;      Closes the market with id user_1_rain_tomorrow.
+(y-n-close-market "user_1_rain_tomorrow")
+(y-n-read-market "user_1_rain_tomorrow") 
+    ;; since market is now closed, the status is now "ended".
+    ;; Expected Result: {
+    ;;      "predictiveQuestion": "Will it rain tomorrow?", "outcome": "", 
+    ;;      "quantityYes": 20.0, "quantityNo": 20.0, "continuous": false, "endDate": 1746441962, 
+    ;;      "status": "ended", "resolved": false, "resolutionOutcome": ""
+    ;;  }
+
+;;  Description of y-n-resolve-market
+;;      Resolves the market with id user_1_rain_tomorrow to outcome of No.
+;;      We do this so that holders' the right outcome's shares can get paid out from the escrow-account (in function y-n-resolve-portfolio).
+(y-n-resolve-market "user_1_rain_tomorrow" "no")
+(y-n-read-market "user_1_rain_tomorrow") 
+    ;; Since No is the right outcome, status is now resolved, resolved market is now true, and resoluctionOutcome is No.
+    ;; Expected Result: {
+    ;;      "predictiveQuestion": "Will it rain tomorrow?", "outcome": "", 
+    ;;      "quantityYes": 20.0, "quantityNo": 20.0, "continuous": false, "endDate": 1746441962, 
+    ;;      "status": "resolved", "resolved": true, "resolutionOutcome": "no"
+    ;;  }
+
+
+;;  Description of y-n-resolve-portfolio
+;;      Resolved user_1's holdings for the market id user_1_rain_tomorrow.
+;;      We only run it for user_1 since, it's the only user with a balance in the market
+(y-n-resolve-portfolio "user_1" "user_1_rain_tomorrow")
+
+(details "user_1") 
+    ;; user_1 receives 20 FINUX from the escrow-account since user_1 has 20 No Shares in the market.
+    ;; Expected Result: {"account": "user_1", "balance": 497.66335, "guard": KeySet {keys: [user_1], pred: keys-all}}
+(details "finulab-prediction-market-escrow-account") 
+    ;; Escrow-account balance decreases by 20 for the resolution of user_1's portfolio.
+    ;; Expected Result: {"account": "finulab-prediction-market-escrow-account", "balance": 2.77259, "guard": KeySet {keys: [ 714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711 ], pred: keys-all}}
+
+(y-n-read-market "user_1_rain_tomorrow") 
+    ;; Since all shares have been resolved, the market no longer has any quantities (Yes or No).
+    ;; Expected Result: {
+    ;;      "predictiveQuestion": "Will it rain tomorrow?", "outcome": "", 
+    ;;      "quantityYes": 0.0, "quantityNo": 0.0, "continuous": false, "endDate": 1746441962, 
+    ;;      "status": "resolved", "resolved": true, "resolutionOutcome": "no"
+    ;;  }
+(y-n-read-portfolio "user_1" "user_1_rain_tomorrow") 
+    ;; Since user_1 converted his shares of the No outcome to FINUX, he has no balance.
+    ;; Note: "yesQuantity" balance is 0, since that outcome didn't occur, all Yes shares have no value.
+    ;; Expected Result: {"yesQuantity": 0.0,"noQuantity": 0.0}
+
+(commit-tx)
+
+;;  Tx 5
+;;      Goal: Test 5 of the major functionalities in the module free.finux-c-prediction_market
+;;      Module Tested: free.finux, free.finux-y-n-prediction_market, & free.finux-c-prediction_market
+;;      Major Functions Tested: 
+;;          1. c-create-market
+;;          2. c-portfolio-credit
+;;          3. c-portfolio-debit
+;;          4. c-read-market
+;;          5. c-read-portfolio
+(begin-tx)
+
+(use free.finux)
+(use free.finux-y-n-prediction_market)
+(use free.finux-c-prediction_market)
+
+(env-data
+    {
+        "user_1": {"keys": ["user_1"], "pred": "keys-all"},
+        "user_2": {"keys": ["user_2"], "pred": "keys-all"},
+        "finux-module-admin": {"keys": ["module-admin"], "pred": "keys-all"},
+        "finux-operations-admin": {"keys": ["operations-admin"], "pred": "keys-all"},
+        "finulab-prediction-market-fees": {"keys": ["33693ab467270fcb86ec63e6313e04a6e403deac0244c45986491b71ae01a702"], "pred": "keys-all"},
+        "finulab-prediction-market-escrow-account": {"keys": ["714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711"], "pred": "keys-all"}
+    }
+)
+(env-sigs 
+    [
+        {"key": "user_1", "caps": [(free.finux.TRANSFER "user_1" "finulab-prediction-market-escrow-account" 22.77259)]},
+        {"key": "user_2", "caps": [(free.finux.TRANSFER "user_2" "finulab-prediction-market-escrow-account" 17.43773), (free.finux.TRANSFER "user_2" "finulab-prediction-market-fees" 0.43594), (free.finux.TRANSFER "user_2" "user_1" 0.43594)]},
+        {"key": "module-admin", "caps": []},
+        {"key": "operations-admin", "caps": []},
+        {"key": "33693ab467270fcb86ec63e6313e04a6e403deac0244c45986491b71ae01a702", "caps": []},
+        {"key": "714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711", "caps": [(free.finux.TRANSFER "finulab-prediction-market-escrow-account" "user_2" 17.43773)]}
+    ]
+)
+
+;;  Description of c-create-market:
+;;      user_1 is creating a market with a unique marketId ("SuperBowl_2024").
+;;      The event is "Who will win the Super Bowl?", and it will end at the unix timestamp of 1746441962.
+;;      The initial quantity of shares created is: 20 Cheifs Shares and 20 Eagles Shares. Further, 22.77259 FINUX was locked to create the market.
+;;      Note: false here just indicates that the market will not be traded forever, it will have an end-date/end-unix-timestamp of 1746441962.
+(c-create-market "user_1" "SuperBowl_2024" "Who will win the Super Bowl?" {"outcomeOne": "Cheifs", "outcomeTwo": "Eagles"} false 1746441962 {"quantityOne": 20.0, "quantityTwo": 20.0, "quantityThree":0.0, "quantityFour":0.0, "cost": 22.77259})
+
+(c-read-market "SuperBowl_2024") 
+    ;; Expected Result: {
+    ;;      "predictiveQuestion": "Who will win the Super Bowl?", "outcomes": ["Cheifs" "Eagles"],
+    ;;      "quantities": [["Cheifs" 20.0] ["Eagles" 20.0]], "continuous": false, "endDate": 1746441962, 
+    ;;      "status": "live", "resolved": false, "resolutionOutcome": ""
+    ;;  }
+(c-read-portfolio "user_1" "SuperBowl_2024") 
+    ;; user_1's balance in the market id: "SuperBowl_2024"
+    ;; Expected Result: {"quantities": [["Cheifs" 20.0] ["Eagles" 20.0]]}
+
+(details "user_1") 
+    ;; user_1 locked FINUX, so balance decreased by 22.77259
+    ;; Expected Result: {"account": "user_1", "balance": 474.89076, "guard": KeySet {keys: [user_1],pred: keys-all}}
+(details "finulab-prediction-market-escrow-account") 
+    ;; escrow-account now contains that locked FINUX
+    ;; Expected Result: {"account": "finulab-prediction-market-escrow-account", "balance": 25.54518, "guard": KeySet {keys: [ 714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711 ], pred: keys-all}}
+
+;;  Description of c-portfolio-credit:
+;;      user_2 is purchasing shares in the market id of SuperBowl_2024.
+;;      user_2 is purchasing 20 Eagles shares (i.e., outcomeTwo), and the liqudity user_2 is locking is 17.43773.
+;;      As purchasing has tx-fees, user_2 is paying user_1 and finulab 0.43594. Since the creator of the market earns 50% of the fees.
+(c-portfolio-credit "user_2" "SuperBowl_2024" "outcomeTwo" {"quantity": 20.0, "cost": 17.43773} {"fee": 0.43594, "creator-fee": 0.43594, "creator-address": "user_1", "predictive-question": "Who will win the Super Bowl?", "outcomes": {"outcomeOne": "Cheifs", "outcomeTwo": "Eagles"}, "continuous": false, "end-date": 1746441962})
+
+(details "user_1") 
+    ;; user_1 received the fees paid of 0.43594
+    ;; Expected Result: {"account": "user_1", "balance": 475.3267, "guard": KeySet {keys: [user_1], pred: keys-all}}
+(details "user_2") 
+    ;; user_2 locked FINUX and paid fees, so balance decreases by 18.30961.
+    ;; Expected Result: {"account": "user_2", "balance": 480.81851, "guard": KeySet {keys: [user_2], pred: keys-all}}
+
+(details "finulab-prediction-market-fees") 
+    ;; finulab's root account of market-fees increases by 0.43594.
+    ;; {"account": "finulab-prediction-market-fees", "balance": 0.87188, "guard": KeySet {keys: [ 33693ab467270fcb86ec63e6313e04a6e403deac0244c45986491b71ae01a702 ], pred: keys-all}}
+(details "finulab-prediction-market-escrow-account") 
+    ;; escrow-account now contains that locked FINUX, so balance increases by 17.43773.
+    ;; Expected Result: {"account": "finulab-prediction-market-escrow-account", "balance": 42.98291, "guard": KeySet {keys: [ 714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711 ], pred: keys-all}}
+
+(c-read-market "SuperBowl_2024") 
+    ;; since user_2 purchased 20 Eagles shares, market's Eagles quantity increased
+    ;; Expected Result: {
+    ;;      "predictiveQuestion": "Who will win the Super Bowl?", "outcomes": ["Cheifs" "Eagles"], 
+    ;;      "quantities": [["Cheifs" 20.0] ["Eagles" 40.0]], "continuous": false, "endDate": 1746441962, 
+    ;;      "status": "live", "resolved": false, "resolutionOutcome": ""
+    ;;  }
+(c-read-portfolio "user_2" "SuperBowl_2024") 
+    ;; user_2's balance in the market id: "SuperBowl_2024"
+    ;; Expected Result: {"quantities": [["Cheifs" 0.0] ["Eagles" 20.0]]}
+
+;;  Description of c-portfolio-debit
+;;      user_2 is now selling shares in the market id of SuperBowl_2024.
+;;      user_2 is selling the 20 Eagles shares, thus unlocking the 17.43773 FINUX for the root escrow-account.
+(c-portfolio-debit "user_2" "SuperBowl_2024" "outcomeTwo" {"quantity": 20.0, "cost": 17.43773})
+
+
+(details "user_2") 
+    ;; user_2 received the unlocked FINUX, hence balance increasing by 17.43773
+    ;; Expected Result: {"account": "user_2", "balance": 498.25624, "guard": KeySet {keys: [user_2], pred: keys-all}}
+
+(details "finulab-prediction-market-escrow-account") 
+    ;; since user_2 unlocked FINUX, the escrow-account's balance decreased by 17.43773
+    ;; Expected Result: {"account": "finulab-prediction-market-escrow-account", "balance": 25.54518, "guard": KeySet {keys: [ 714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711 ], pred: keys-all}}
+
+(c-read-market "SuperBowl_2024") 
+    ; since user_2 sold all the Eagles shares, market's Eagles Quantity decreased by 20
+    ;; Expected Result: {
+    ;;      "predictiveQuestion": "Who will win the Super Bowl?", "outcomes": ["Cheifs" "Eagles"], 
+    ;;      "quantities": [["Cheifs" 20.0] ["Eagles" 20.0]], "continuous": false, "endDate": 1746441962, 
+    ;;      "status": "live", "resolved": false, "resolutionOutcome": ""
+    ;;  }
+(c-read-portfolio "user_2" "SuperBowl_2024") 
+    ;; since user_2 sold all his shares, user owns nothing
+    ;; Expected Result: {"quantities": [["Cheifs" 0.0] ["Eagles" 0.0]]}
+
+(commit-tx)
+
+;;  Tx 6
+;;      Goal: Test all the other major functionalities in the module free.finux-c-prediction_market
+;;      Module Tested: free.finux, free.finux-y-n-prediction_market, & free.finux-c-prediction_market
+;;      Major Functions Tested: 
+;;          1. c-close-market
+;;          2. c-resolve-market
+;;          3. c-resolve-portfolio
+(begin-tx)
+
+(use free.finux)
+(use free.finux-y-n-prediction_market)
+(use free.finux-c-prediction_market)
+
+(env-data
+    {
+        "user_1": {"keys": ["user_1"], "pred": "keys-all"},
+        "finux-module-admin": {"keys": ["module-admin"], "pred": "keys-all"},
+        "finux-operations-admin": {"keys": ["operations-admin"], "pred": "keys-all"},
+        "finulab-prediction-market-fees": {"keys": ["33693ab467270fcb86ec63e6313e04a6e403deac0244c45986491b71ae01a702"], "pred": "keys-all"},
+        "finulab-prediction-market-escrow-account": {"keys": ["714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711"], "pred": "keys-all"}
+    }
+)
+(env-sigs 
+    [
+        {"key": "user_1", "caps": []},
+        {"key": "module-admin", "caps": []},
+        {"key": "operations-admin", "caps": []},
+        {"key": "33693ab467270fcb86ec63e6313e04a6e403deac0244c45986491b71ae01a702", "caps": []},
+        {"key": "714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711", "caps": [(free.finux.TRANSFER "finulab-prediction-market-escrow-account" "user_1" 20.0)]}
+    ]
+)
+
+;;  Description of c-close-market
+;;      Closes the market with id SuperBowl_2024.
+(c-close-market "SuperBowl_2024")
+(c-read-market "SuperBowl_2024") 
+    ;; since market is now closed, the status is now "ended".
+    ;; Expected Result: {
+    ;;      "predictiveQuestion": "Who will win the Super Bowl?", "outcomes": ["Cheifs" "Eagles"], 
+    ;;      "quantities": [["Cheifs" 20.0] ["Eagles" 20.0]], "continuous": false, "endDate": 1746441962, 
+    ;;      "status": "ended", "resolved": false, "resolutionOutcome": ""
+    ;;  }
+
+;;  Description of c-resolve-market
+;;      Resolves the market with id SuperBowl_2024 to outcome of outcomeTwo (i.e., Eagles -- since they won).
+;;      We do this so that holders' the right outcome's shares can get paid out from the escrow-account (in function c-resolve-portfolio).
+(c-resolve-market "SuperBowl_2024" "outcomeTwo")
+(c-read-market "SuperBowl_2024") 
+    ;; Since outcomeTwo (i.e., Eagles) is the right outcome, status is now resolved, resolved market is now true, and resoluctionOutcome is "outcomeTwo".
+    ;; Expected Result: {
+    ;;      "predictiveQuestion": "Who will win the Super Bowl?", "outcomes": ["Cheifs" "Eagles"], 
+    ;;      "quantities": [["Cheifs" 20.0] ["Eagles" 20.0]], "continuous": false, "endDate": 1746441962, 
+    ;;      "status": "resolved", "resolved": true, "resolutionOutcome": "outcomeTwo"
+    ;;  }
+
+
+;;  Description of c-resolve-portfolio
+;;      Resolved user_1's holdings for the market id SuperBowl_2024.
+;;      We only run it for user_1 since, it's the only user with a balance in the market
+(c-resolve-portfolio "user_1" "SuperBowl_2024")
+
+(details "user_1") 
+    ;; user_1 receives 20 FINUX from the escrow-account since user_1 has 20 Eagles Shares in the market.
+    ;; Expected Result: {"account": "user_1", "balance": 495.3267, "guard": KeySet {keys: [user_1], pred: keys-all}}
+(details "finulab-prediction-market-escrow-account") 
+    ;; Escrow-account balance decreases by 20 for the resolution of user_1's portfolio.
+    ;; Expected Result: {"account": "finulab-prediction-market-escrow-account", "balance": 5.54518, "guard": KeySet {keys: [ 714a2a357b1b417fba468e05ee16fcfe3c2d6200ecb33673e5793b097130f711 ], pred: keys-all}}
+
+(c-read-market "SuperBowl_2024") 
+    ;; Since all shares have been resolved, the market no longer has any quantities (Chefis or Eagles).
+    ;; Expected Result: {
+    ;;      "predictiveQuestion": "Who will win the Super Bowl?", "outcomes": ["Cheifs" "Eagles"], 
+    ;;      "quantities": [["Cheifs" 0.0] ["Eagles" 0.0]], "continuous": false, "endDate": 1746441962, 
+    ;;      "status": "resolved", "resolved": true, "resolutionOutcome": "outcomeTwo"
+    ;;  }
+(c-read-portfolio "user_1" "SuperBowl_2024") 
+    ;; Since user_1 converted his Eagles Shares to FINUX, he has no balance.
+    ;; Note: "Cheifs" balance is 0, since that outcome didn't occur, all Cheifs shares have no value.
+    ;; Expected Result: {"quantities": [["Cheifs" 0.0] ["Eagles" 0.0]]}
+
+(commit-tx)
